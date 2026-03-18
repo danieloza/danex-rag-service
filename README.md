@@ -5,6 +5,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain)](https://langchain.com/)
 [![Gemini](https://img.shields.io/badge/Google_Gemini-8E75B2?style=for-the-badge&logo=googlegemini)](https://deepmind.google/technologies/gemini/)
+[![CI](https://github.com/danieloza/danex-rag-service/actions/workflows/ci.yml/badge.svg)](https://github.com/danieloza/danex-rag-service/actions/workflows/ci.yml)
 
 ## Overview
 
@@ -63,10 +64,10 @@ pip install -r requirements.txt
 Configure environment:
 
 ```bash
-cp ../.env.global .env.global
+cp .env.example .env
 ```
 
-Set `GOOGLE_API_KEY` in the shared environment file before starting the service.
+Set `GOOGLE_API_KEY` before starting the service. Optional database paths can be overridden through `SALONOS_DB_PATH` and `DANEX_DB_PATH`.
 
 Run locally:
 
@@ -74,9 +75,16 @@ Run locally:
 uvicorn main:app --host 127.0.0.1 --port 8002 --reload
 ```
 
+Run a quick smoke check:
+
+```bash
+python -m pytest -q
+```
+
 ## Architecture Notes
 
 - Vector context is loaded from the local `faiss_index` directory
 - SQL answers are generated against SalonOS and Danex SQLite databases
 - PDF reports are generated through `pdf_generator.py`
+- The service prefers a local `.env` and falls back to the shared workspace `.env.global`
 - The service is intended to sit alongside the Danex backend stack as an AI inference layer
