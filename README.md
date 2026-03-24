@@ -78,8 +78,12 @@ uvicorn main:app --host 127.0.0.1 --port 8002 --reload
 Run a quick smoke check:
 
 ```bash
-python -m pytest -q
+python -m pytest -q tests
 ```
+
+Notes:
+- `GET /health` and the local smoke test do not require a live Gemini request.
+- Full hybrid answers require `GOOGLE_API_KEY` plus access to the target SQLite data sources.
 
 ## Architecture Notes
 
@@ -88,3 +92,7 @@ python -m pytest -q
 - PDF reports are generated through `pdf_generator.py`
 - The service prefers a local `.env` and falls back to the shared workspace `.env.global`
 - The service is intended to sit alongside the Danex backend stack as an AI inference layer
+
+Additional docs:
+- Architecture: [docs/ARCHITECTURE.md](/C:/Users/syfsy/projekty/danex-rag-service/docs/ARCHITECTURE.md)
+- Case study: [docs/CASE_STUDY.md](/C:/Users/syfsy/projekty/danex-rag-service/docs/CASE_STUDY.md)

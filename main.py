@@ -130,6 +130,8 @@ async def ask_assistant(query: QueryRequest):
             "sources": ["SQLite Local", "HuggingFace Local"],
             "confidence_score": 0.95,
         }
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("RAG error: %s", exc)
         return {
