@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Danex RAG Console</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="logo">DR</div>
+        <div>
+          <div class="title">Danex RAG Console</div>
+          <div class="subtitle">Hybrid RAG with SQL + Vector retrieval</div>
+        </div>
+      </div>
+      <div class="status" id="status-pill">Idle</div>
+    </header>
+
+    <main class="grid">
+      <section class="panel">
+        <h2>Ask</h2>
+        <label class="label" for="question">Question</label>
+        <textarea id="question" rows="6" placeholder="Ask about revenue, visits, invoices, or internal procedures..."></textarea>
+
+        <div class="row">
+          <div class="field">
+            <label class="label" for="db-target">DB target</label>
+            <select id="db-target">
+              <option value="salonos">salonos</option>
+              <option value="danex">danex</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="examples">Quick prompts</label>
+            <select id="examples">
+              <option value="">Select...</option>
+              <option value="Ile wyniosl utarg w ostatnim tygodniu?">Ile wyniosl utarg w ostatnim tygodniu?</option>
+              <option value="Pokaz liste ostatnich faktur.">Pokaz liste ostatnich faktur.</option>
+              <option value="Jak wyglada procedura reklamacji?">Jak wyglada procedura reklamacji?</option>
+              <option value="Kiedy klient X mial ostatnia wizyte?">Kiedy klient X mial ostatnia wizyte?</option>
+            </select>
+          </div>
+        </div>
+
+        <button id="ask-button">Run query</button>
+        <div class="helper">This will route to SQL, vector search, or both depending on the question.</div>
+      </section>
+
+      <section class="panel">
+        <h2>Answer</h2>
+        <div id="answer" class="answer muted">Awaiting a question.</div>
+        <div class="meta">
+          <div class="chip" id="meta-db">db: -</div>
+          <div class="chip" id="meta-model">model: -</div>
+          <div class="chip" id="meta-latency">latency: -</div>
+          <div class="chip" id="meta-route">route: -</div>
+        </div>
+        <div class="sources" id="sources"></div>
+        <div class="citations" id="citations"></div>
+      </section>
+
+      <section class="panel compact">
+        <h2>Signals</h2>
+        <div class="signal">
+          <span>Used SQL</span>
+          <strong id="signal-sql">-</strong>
+        </div>
+        <div class="signal">
+          <span>Used Vector</span>
+          <strong id="signal-vector">-</strong>
+        </div>
+        <div class="signal">
+          <span>Confidence</span>
+          <strong id="signal-confidence">-</strong>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Ingestion</h2>
+        <label class="label" for="upload-files">Upload documents</label>
+        <input id="upload-files" type="file" multiple>
+        <div class="row">
+          <button id="upload-button" class="secondary">Upload + rebuild</button>
+          <button id="rebuild-button" class="ghost">Rebuild index</button>
+        </div>
+        <div class="helper" id="ingest-status">Waiting for files.</div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

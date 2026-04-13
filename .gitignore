@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
+.runtime-uvicorn.*.log
 *.pyo
 *.pyd
 .pytest_cache/

@@ -1,26 +1,28 @@
 # Danex Global Hybrid RAG Service
 
-> Advanced retrieval-augmented generation engine with semantic search and SQL-backed answers.
+> Hybrydowy backend RAG z wyszukiwaniem semantycznym i odpowiedziami opartymi o SQL.
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain)](https://langchain.com/)
 [![Gemini](https://img.shields.io/badge/Google_Gemini-8E75B2?style=for-the-badge&logo=googlegemini)](https://deepmind.google/technologies/gemini/)
 [![CI](https://github.com/danieloza/danex-rag-service/actions/workflows/ci.yml/badge.svg)](https://github.com/danieloza/danex-rag-service/actions/workflows/ci.yml)
 
-## Overview
+## Opis
 
-Danex RAG is an inference service designed to bridge unstructured documentation with structured operational data. It uses a hybrid retrieval flow that routes questions between vector-based semantic search and SQL query synthesis for deterministic answers.
+Danex RAG to serwis inference, ktory laczy nieustrukturyzowana dokumentacje z ustrukturyzowanymi danymi operacyjnymi. Projekt wykorzystuje hybrydowy przeplyw retrievalu: czesc pytan obsluguje przez wyszukiwanie semantyczne, a czesc przez synteze zapytan SQL i odpowiedzi oparte o baze danych.
 
-## Key Engineering Features
+To podejscie pozwala budowac bardziej praktyczne odpowiedzi niz w prostym chatbocie opartym tylko o dokumenty.
 
-- Hybrid retrieval pipeline combining FAISS semantic search with Text-to-SQL over operational databases
-- FastAPI-based service layer for low-latency API inference and report generation
-- Local-first embeddings using HuggingFace `sentence-transformers/all-MiniLM-L6-v2`
-- Gemini-powered SQL query generation and answer synthesis
-- Pydantic request validation and explicit API contracts for stable integration
-- Health endpoint and logging hooks for runtime diagnostics
+## Kluczowe cechy techniczne
 
-## Tech Stack
+- hybrydowy pipeline laczacy FAISS semantic search z Text-to-SQL nad bazami operacyjnymi
+- warstwa API oparta o FastAPI do inference i generowania raportow
+- lokalne embeddingi z HuggingFace `sentence-transformers/all-MiniLM-L6-v2`
+- generowanie zapytan SQL i synteza odpowiedzi wspierane przez Gemini
+- walidacja requestow w Pydantic i jawne kontrakty API
+- endpoint health i podstawowe logowanie do diagnostyki runtime
+
+## Stack technologiczny
 
 - Inference: Google Gemini 2.0 Flash
 - Frameworks: FastAPI, LangChain, Pydantic
@@ -28,7 +30,7 @@ Danex RAG is an inference service designed to bridge unstructured documentation 
 - Data Sources: SQLite (`salonos.db`, `danex.db`)
 - Embeddings: HuggingFace `all-MiniLM-L6-v2`
 
-## API Surface
+## Powierzchnia API
 
 - `POST /api/v1/ask`
 - `POST /api/v1/query`
@@ -36,16 +38,16 @@ Danex RAG is an inference service designed to bridge unstructured documentation 
 - `GET /api/v1/report/download/{filename}`
 - `GET /health`
 
-## Installation and Setup
+## Instalacja i uruchomienie
 
-Clone the repository:
+Sklonuj repozytorium:
 
 ```bash
 git clone https://github.com/danieloza/danex-rag-service.git
 cd danex-rag-service
 ```
 
-Install dependencies:
+Zainstaluj zaleznosci:
 
 ```bash
 python -m venv .venv
@@ -61,38 +63,71 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Configure environment:
+Skonfiguruj srodowisko:
 
 ```bash
 cp .env.example .env
 ```
 
-Set `GOOGLE_API_KEY` before starting the service. Optional database paths can be overridden through `SALONOS_DB_PATH` and `DANEX_DB_PATH`.
+Przed uruchomieniem ustaw `GOOGLE_API_KEY`. Opcjonalne sciezki do baz mozesz nadpisac przez `SALONOS_DB_PATH` i `DANEX_DB_PATH`.
 
-Run locally:
+Uruchom lokalnie:
 
 ```bash
 uvicorn main:app --host 127.0.0.1 --port 8002 --reload
 ```
 
-Run a quick smoke check:
+Po uruchomieniu wejdz na `http://127.0.0.1:8002/` aby otworzyc prosta konsole RAG.
+
+Uruchom szybki smoke test:
 
 ```bash
 python -m pytest -q tests
 ```
 
-Notes:
-- `GET /health` and the local smoke test do not require a live Gemini request.
-- Full hybrid answers require `GOOGLE_API_KEY` plus access to the target SQLite data sources.
+## Ingestion i FAISS
 
-## Architecture Notes
+Budowanie lokalnego indeksu FAISS:
 
-- Vector context is loaded from the local `faiss_index` directory
-- SQL answers are generated against SalonOS and Danex SQLite databases
-- PDF reports are generated through `pdf_generator.py`
-- The service prefers a local `.env` and falls back to the shared workspace `.env.global`
-- The service is intended to sit alongside the Danex backend stack as an AI inference layer
+```bash
+python ingest.py
+```
 
-Additional docs:
-- Architecture: [docs/ARCHITECTURE.md](/C:/Users/syfsy/projekty/danex-rag-service/docs/ARCHITECTURE.md)
+`ingest.py` korzysta z MarkItDown do konwersji plikow na Markdown
+(PDF, DOCX, PPTX, XLSX, HTML, CSV, JSON itd.). Jesli MarkItDown nie jest
+zainstalowany, pliki nietekstowe zostana pominiete z ostrzezeniem.
+
+## Nowe endpointy UX
+
+- `POST /api/v1/ingest/upload` (multipart) - upload plikow do knowledge_base + opcjonalny rebuild
+- `POST /api/v1/ingest/rebuild` - rebuild indeksu FAISS w tle
+- `GET /api/v1/debug/index` - status indeksu + meta ingestu
+- `GET /api/v1/debug/db` - status baz SQLite
+
+Odpowiedz `/api/v1/ask` zwraca dodatkowo:
+
+- `meta.route` (`sql`, `vector`, `hybrid`, `none`)
+- `citations` z fragmentami zrodel vectorowych
+
+Uwagi:
+
+- `GET /health` i lokalny smoke test nie wymagaja aktywnego requestu do Gemini
+- pelne odpowiedzi hybrydowe wymagaja `GOOGLE_API_KEY` oraz dostepu do docelowych zrodel danych SQLite
+
+## Uwagi architektoniczne
+
+- kontekst wektorowy jest ladowany z lokalnego katalogu `faiss_index`
+- odpowiedzi SQL sa generowane na bazach SQLite SalonOS i Danex
+- raporty PDF sa generowane przez `pdf_generator.py`
+- serwis preferuje lokalny `.env`, a w drugiej kolejnosci korzysta ze wspoldzielonego `.env.global`
+- projekt jest pomyslany jako warstwa AI inference dzialajaca obok backendowego stosu Danex
+
+## Jak opowiedziec ten projekt na rozmowie
+
+Danex RAG to hybrydowy backend RAG w FastAPI, ktory laczy semantic retrieval z odpowiedziami opartymi o SQL nad danymi operacyjnymi. Celem bylo zbudowanie bardziej praktycznego rozwiazania niz prosty chatbot oparty tylko o dokumenty.
+
+## Dodatkowa dokumentacja
+
+- Architektura: [docs/ARCHITECTURE.md](/C:/Users/syfsy/projekty/danex-rag-service/docs/ARCHITECTURE.md)
 - Case study: [docs/CASE_STUDY.md](/C:/Users/syfsy/projekty/danex-rag-service/docs/CASE_STUDY.md)
+- Krotka wersja pod rozmowe: [docs/README_SHORT_PL.md](/C:/Users/syfsy/projekty/danex-rag-service/docs/README_SHORT_PL.md)
