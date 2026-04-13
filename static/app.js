@@ -61,9 +61,14 @@ const renderCitations = (citations = []) => {
     wrapper.className = "citation";
     const title = document.createElement("strong");
     title.textContent = citation.source || "Source";
+    const score = document.createElement("div");
+    score.className = "citation-score";
+    const scoreValue = citation.score ?? "-";
+    score.textContent = `score: ${scoreValue}`;
     const snippet = document.createElement("div");
     snippet.textContent = citation.snippet || "";
     wrapper.appendChild(title);
+    wrapper.appendChild(score);
     wrapper.appendChild(snippet);
     citationsBox.appendChild(wrapper);
   });

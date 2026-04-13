@@ -99,6 +99,16 @@ def _safe_snippet(text: str, limit: int = 280) -> str:
     return cleaned[:limit].strip()
 
 
+def _normalize_scores(raw_scores: list[float]) -> list[float]:
+    if not raw_scores:
+        return []
+    min_score = min(raw_scores)
+    max_score = max(raw_scores)
+    if max_score == min_score:
+        return [1.0 for _ in raw_scores]
+    return [(max_score - score) / (max_score - min_score) for score in raw_scores]
+
+
 def get_hybrid_answer(question: str, db_target: str, session_id: str, extra_ctx: list[str] | None):
     context_block = _build_context(session_id, extra_ctx)
     full_question = question if not context_block else f"{context_block}\n\nPytanie: {question}"
@@ -121,13 +131,16 @@ def get_hybrid_answer(question: str, db_target: str, session_id: str, extra_ctx:
 
     vector_answer = ""
     vector_docs = []
+    vector_scores = []
     if FAISS_INDEX_PATH.exists():
         vectorstore = FAISS.load_local(
             str(FAISS_INDEX_PATH),
             embeddings,
             allow_dangerous_deserialization=True,
         )
-        vector_docs = vectorstore.similarity_search(full_question, k=3)
+        scored = vectorstore.similarity_search_with_score(full_question, k=3)
+        vector_docs = [doc for doc, _ in scored]
+        vector_scores = [score for _, score in scored]
         qa_chain = RetrievalQA.from_chain_type(
             llm=llm,
             chain_type="stuff",
@@ -158,10 +171,15 @@ def get_hybrid_answer(question: str, db_target: str, session_id: str, extra_ctx:
         ).content
     used_sql = bool(sql_answer)
 
+    normalized = _normalize_scores(vector_scores)
     if sql_answer and vector_answer and "nie wiem" not in vector_answer.lower():
         citations = [
-            {"source": doc.metadata.get("source", "unknown"), "snippet": _safe_snippet(doc.page_content)}
-            for doc in vector_docs
+            {
+                "source": doc.metadata.get("source", "unknown"),
+                "snippet": _safe_snippet(doc.page_content),
+                "score": round(score, 3),
+            }
+            for doc, score in zip(vector_docs, normalized)
         ]
         return (
             f"Dane z systemu: {sql_answer}\n\nZgodnie z procedurami: {vector_answer}",
@@ -180,8 +198,12 @@ def get_hybrid_answer(question: str, db_target: str, session_id: str, extra_ctx:
         )
     if used_vector:
         citations = [
-            {"source": doc.metadata.get("source", "unknown"), "snippet": _safe_snippet(doc.page_content)}
-            for doc in vector_docs
+            {
+                "source": doc.metadata.get("source", "unknown"),
+                "snippet": _safe_snippet(doc.page_content),
+                "score": round(score, 3),
+            }
+            for doc, score in zip(vector_docs, normalized)
         ]
         return (
             vector_answer,
@@ -233,6 +255,7 @@ async def ask_assistant(query: QueryRequest):
                 "model": FREE_LLM_MODEL,
                 "latency_ms": latency_ms,
                 "route": route,
+                "rerank_topk": len(citations),
             },
         }
     except HTTPException:

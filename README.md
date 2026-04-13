@@ -108,6 +108,7 @@ Odpowiedz `/api/v1/ask` zwraca dodatkowo:
 
 - `meta.route` (`sql`, `vector`, `hybrid`, `none`)
 - `citations` z fragmentami zrodel vectorowych
+- `citations[].score` (znormalizowany score podobienstwa)
 
 Uwagi:
 

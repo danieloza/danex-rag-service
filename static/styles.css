@@ -222,6 +222,12 @@ button.ghost {
   margin-bottom: 6px;
 }
 
+.citation-score {
+  font-size: 0.8rem;
+  color: var(--accent-2);
+  margin-bottom: 6px;
+}
+
 .signal {
   background: var(--panel-strong);
   border: 1px solid var(--line);
