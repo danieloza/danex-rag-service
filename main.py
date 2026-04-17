@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -63,6 +64,8 @@ FAISS_INDEX_PATH = Path("faiss_index")
 FREE_LLM_MODEL = "gemini-2.0-flash"
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 SESSION_CONTEXT: dict[str, list[str]] = {}
+QUERY_HISTORY_PATH = Path(".runtime-query-history.json")
+INGEST_HISTORY_PATH = KNOWLEDGE_DIR / ".ingest_history.json"
 
 if os.path.isdir(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -74,6 +77,40 @@ class QueryRequest(BaseModel):
     db_target: str = "salonos"
     session_id: str = ""
     context: list[str] | None = None
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _read_json_list(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def _seed_ingestion_history_if_missing() -> None:
+    if INGEST_HISTORY_PATH.exists() or not KNOWLEDGE_DIR.exists():
+        return
+    files = [path.name for path in KNOWLEDGE_DIR.iterdir() if path.is_file() and not path.name.startswith(".")]
+    if not files:
+        return
+    _record_ingest_event("seed", files, False, "indexed")
+
+
+def _write_json_list(path: Path, items: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(items, indent=2), encoding="utf-8")
+
+
+def _append_json_item(path: Path, item: dict, limit: int = 50) -> None:
+    items = _read_json_list(path)
+    items.insert(0, item)
+    _write_json_list(path, items[:limit])
 
 
 def _build_context(session_id: str, incoming: list[str] | None) -> str:
@@ -92,6 +129,50 @@ def _store_context(session_id: str, question: str, answer: str) -> None:
     history.append(f"Q: {question}")
     history.append(f"A: {answer}")
     SESSION_CONTEXT[session_id] = history[-6:]
+
+
+def _record_query_history(
+    question: str,
+    answer: str,
+    db_target: str,
+    route: str,
+    latency_ms: float,
+    citations: list[dict],
+) -> None:
+    _append_json_item(
+        QUERY_HISTORY_PATH,
+        {
+            "timestamp": _utc_now(),
+            "question": question,
+            "answer_preview": _safe_snippet(answer, 220),
+            "db_target": db_target,
+            "route": route,
+            "latency_ms": latency_ms,
+            "citations_count": len(citations),
+            "top_score": citations[0]["score"] if citations else None,
+        },
+    )
+
+
+def _record_ingest_event(action: str, filenames: list[str], rebuild: bool, status: str) -> None:
+    _append_json_item(
+        INGEST_HISTORY_PATH,
+        {
+            "timestamp": _utc_now(),
+            "action": action,
+            "files": filenames,
+            "rebuild": rebuild,
+            "status": status,
+        },
+    )
+
+
+def _knowledge_file_entry(path: Path) -> dict:
+    return {
+        "name": path.name,
+        "size": path.stat().st_size,
+        "updated_at": datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat(),
+    }
 
 
 def _safe_snippet(text: str, limit: int = 280) -> str:
@@ -243,6 +324,14 @@ async def ask_assistant(query: QueryRequest):
         if used_vector:
             sources.append("HuggingFace Local")
         _store_context(query.session_id, q_text, answer)
+        _record_query_history(
+            q_text,
+            answer,
+            query.db_target,
+            route,
+            latency_ms,
+            citations,
+        )
         return {
             "answer": answer,
             "sources": sources,
@@ -311,13 +400,41 @@ async def upload_documents(
         saved.append(file.filename)
     if rebuild:
         background_tasks.add_task(build_index, KNOWLEDGE_DIR, FAISS_INDEX_PATH)
+    _record_ingest_event("upload", saved, rebuild, "accepted")
     return {"status": "ok", "saved": saved, "rebuild": rebuild}
 
 
 @app.post("/api/v1/ingest/rebuild")
 async def rebuild_index(background_tasks: BackgroundTasks):
     background_tasks.add_task(build_index, KNOWLEDGE_DIR, FAISS_INDEX_PATH)
+    _record_ingest_event("rebuild", [], True, "accepted")
     return {"status": "ok", "message": "Rebuild started"}
+
+
+@app.get("/api/v1/ingest/history")
+async def ingestion_history():
+    _seed_ingestion_history_if_missing()
+    files = [
+        _knowledge_file_entry(path)
+        for path in sorted(KNOWLEDGE_DIR.iterdir(), key=lambda item: item.stat().st_mtime, reverse=True)
+        if path.is_file() and not path.name.startswith(".")
+    ] if KNOWLEDGE_DIR.exists() else []
+    return {
+        "history": _read_json_list(INGEST_HISTORY_PATH),
+        "files": files,
+    }
+
+
+@app.delete("/api/v1/ingest/files/{filename}")
+async def delete_ingested_file(filename: str, background_tasks: BackgroundTasks, rebuild: bool = True):
+    target = KNOWLEDGE_DIR / filename
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    target.unlink()
+    if rebuild:
+        background_tasks.add_task(build_index, KNOWLEDGE_DIR, FAISS_INDEX_PATH)
+    _record_ingest_event("delete", [filename], rebuild, "accepted")
+    return {"status": "ok", "deleted": filename, "rebuild": rebuild}
 
 
 @app.get("/api/v1/debug/index")
@@ -330,6 +447,37 @@ async def index_status():
         "index_path": str(FAISS_INDEX_PATH),
         "exists": FAISS_INDEX_PATH.exists(),
         "meta": meta,
+    }
+
+
+@app.get("/api/v1/history/queries")
+async def query_history():
+    return {"history": _read_json_list(QUERY_HISTORY_PATH)}
+
+
+@app.get("/api/v1/evals/summary")
+async def eval_summary():
+    history = _read_json_list(QUERY_HISTORY_PATH)
+    if not history:
+        return {
+            "queries": 0,
+            "avg_latency_ms": 0,
+            "route_breakdown": {},
+            "avg_top_score": 0,
+        }
+
+    avg_latency = round(sum(item.get("latency_ms", 0) for item in history) / len(history), 2)
+    scored = [item["top_score"] for item in history if item.get("top_score") is not None]
+    avg_top_score = round(sum(scored) / len(scored), 3) if scored else 0
+    route_breakdown: dict[str, int] = {}
+    for item in history:
+        route = item.get("route", "unknown")
+        route_breakdown[route] = route_breakdown.get(route, 0) + 1
+    return {
+        "queries": len(history),
+        "avg_latency_ms": avg_latency,
+        "route_breakdown": route_breakdown,
+        "avg_top_score": avg_top_score,
     }
 
 

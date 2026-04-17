@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Danex RAG Console</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -78,6 +79,22 @@
         </div>
       </section>
 
+      <section class="panel compact">
+        <h2>Evaluation</h2>
+        <div class="signal">
+          <span>Queries</span>
+          <strong id="eval-queries">-</strong>
+        </div>
+        <div class="signal">
+          <span>Avg latency</span>
+          <strong id="eval-latency">-</strong>
+        </div>
+        <div class="signal">
+          <span>Avg top score</span>
+          <strong id="eval-score">-</strong>
+        </div>
+      </section>
+
       <section class="panel">
         <h2>Ingestion</h2>
         <label class="label" for="upload-files">Upload documents</label>
@@ -87,6 +104,19 @@
           <button id="rebuild-button" class="ghost">Rebuild index</button>
         </div>
         <div class="helper" id="ingest-status">Waiting for files.</div>
+        <div class="subpanel">
+          <h3>Knowledge files</h3>
+          <div id="knowledge-files" class="stack-list muted">No files loaded.</div>
+        </div>
+        <div class="subpanel">
+          <h3>Ingestion history</h3>
+          <div id="ingestion-history" class="stack-list muted">No ingestion events yet.</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Query History</h2>
+        <div id="query-history" class="stack-list muted">No queries yet.</div>
       </section>
     </main>
   </div>

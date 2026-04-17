@@ -214,6 +214,7 @@ button.ghost {
   background: rgba(122, 162, 247, 0.06);
   font-size: 0.85rem;
   color: var(--muted);
+  cursor: pointer;
 }
 
 .citation strong {
@@ -226,6 +227,67 @@ button.ghost {
   font-size: 0.8rem;
   color: var(--accent-2);
   margin-bottom: 6px;
+}
+
+.citation-expanded {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 0.84rem;
+  color: var(--text);
+}
+
+.subpanel {
+  margin-top: 18px;
+}
+
+.subpanel h3 {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+}
+
+.stack-list {
+  display: grid;
+  gap: 10px;
+}
+
+.list-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--panel-strong);
+}
+
+.list-card .topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.list-card .meta-line {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.list-card .preview {
+  margin-top: 8px;
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.inline-actions button {
+  margin-top: 0;
+  padding: 8px 12px;
+  font-size: 0.82rem;
 }
 
 .signal {

@@ -17,6 +17,21 @@ const uploadInput = document.getElementById("upload-files");
 const uploadButton = document.getElementById("upload-button");
 const rebuildButton = document.getElementById("rebuild-button");
 const ingestStatus = document.getElementById("ingest-status");
+const queryHistoryBox = document.getElementById("query-history");
+const ingestionHistoryBox = document.getElementById("ingestion-history");
+const knowledgeFilesBox = document.getElementById("knowledge-files");
+const evalQueries = document.getElementById("eval-queries");
+const evalLatency = document.getElementById("eval-latency");
+const evalScore = document.getElementById("eval-score");
+
+const formatDate = (value) => {
+  if (!value) return "-";
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
+  }
+};
 
 const setStatus = (text) => {
   statusPill.textContent = text;
@@ -67,11 +82,147 @@ const renderCitations = (citations = []) => {
     score.textContent = `score: ${scoreValue}`;
     const snippet = document.createElement("div");
     snippet.textContent = citation.snippet || "";
+    const expanded = document.createElement("div");
+    expanded.className = "citation-expanded";
+    expanded.textContent = citation.snippet || "";
+    expanded.hidden = true;
     wrapper.appendChild(title);
     wrapper.appendChild(score);
     wrapper.appendChild(snippet);
+    wrapper.appendChild(expanded);
+    wrapper.addEventListener("click", () => {
+      expanded.hidden = !expanded.hidden;
+    });
     citationsBox.appendChild(wrapper);
   });
+};
+
+const renderListCards = (container, items, emptyText, renderCard) => {
+  container.innerHTML = "";
+  if (!items.length) {
+    container.textContent = emptyText;
+    container.classList.add("muted");
+    return;
+  }
+  container.classList.remove("muted");
+  items.forEach((item) => container.appendChild(renderCard(item)));
+};
+
+const createCard = () => {
+  const card = document.createElement("div");
+  card.className = "list-card";
+  return card;
+};
+
+const renderQueryHistory = (items = []) => {
+  renderListCards(queryHistoryBox, items, "No queries yet.", (item) => {
+    const card = createCard();
+    const topline = document.createElement("div");
+    topline.className = "topline";
+    topline.innerHTML = `<strong>${item.question || "Question"}</strong><span class="meta-line">${item.route || "-"}</span>`;
+    const meta = document.createElement("div");
+    meta.className = "meta-line";
+    meta.textContent = `${formatDate(item.timestamp)} | ${item.db_target || "-"} | ${item.latency_ms || "-"} ms`;
+    const preview = document.createElement("div");
+    preview.className = "preview";
+    preview.textContent = item.answer_preview || "";
+    card.appendChild(topline);
+    card.appendChild(meta);
+    card.appendChild(preview);
+    return card;
+  });
+};
+
+const renderIngestionHistory = (items = []) => {
+  renderListCards(ingestionHistoryBox, items, "No ingestion events yet.", (item) => {
+    const card = createCard();
+    const topline = document.createElement("div");
+    topline.className = "topline";
+    topline.innerHTML = `<strong>${item.action || "event"}</strong><span class="meta-line">${item.status || "-"}</span>`;
+    const meta = document.createElement("div");
+    meta.className = "meta-line";
+    const files = item.files?.length ? item.files.join(", ") : "no files";
+    meta.textContent = `${formatDate(item.timestamp)} | ${files}`;
+    card.appendChild(topline);
+    card.appendChild(meta);
+    return card;
+  });
+};
+
+const deleteKnowledgeFile = async (filename) => {
+  setIngestStatus(`Deleting ${filename}...`);
+  try {
+    const response = await fetch(`/api/v1/ingest/files/${encodeURIComponent(filename)}?rebuild=true`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    setIngestStatus(`Deleted ${filename}. Rebuild started.`);
+    await Promise.all([loadIngestionHistory(), loadEvalSummary()]);
+  } catch (error) {
+    setIngestStatus(`Delete failed: ${error.message}`);
+  }
+};
+
+const renderKnowledgeFiles = (items = []) => {
+  renderListCards(knowledgeFilesBox, items, "No files loaded.", (item) => {
+    const card = createCard();
+    const topline = document.createElement("div");
+    topline.className = "topline";
+    topline.innerHTML = `<strong>${item.name}</strong><span class="meta-line">${item.size} bytes</span>`;
+    const meta = document.createElement("div");
+    meta.className = "meta-line";
+    meta.textContent = `updated ${formatDate(item.updated_at)}`;
+    const actions = document.createElement("div");
+    actions.className = "inline-actions";
+    const button = document.createElement("button");
+    button.className = "ghost";
+    button.textContent = "Delete + rebuild";
+    button.addEventListener("click", () => deleteKnowledgeFile(item.name));
+    actions.appendChild(button);
+    card.appendChild(topline);
+    card.appendChild(meta);
+    card.appendChild(actions);
+    return card;
+  });
+};
+
+const loadQueryHistory = async () => {
+  try {
+    const response = await fetch("/api/v1/history/queries");
+    const payload = await response.json();
+    renderQueryHistory(payload.history || []);
+  } catch {
+    queryHistoryBox.textContent = "Failed to load query history.";
+    queryHistoryBox.classList.add("muted");
+  }
+};
+
+const loadIngestionHistory = async () => {
+  try {
+    const response = await fetch("/api/v1/ingest/history");
+    const payload = await response.json();
+    renderIngestionHistory(payload.history || []);
+    renderKnowledgeFiles(payload.files || []);
+  } catch {
+    ingestionHistoryBox.textContent = "Failed to load ingestion history.";
+    ingestionHistoryBox.classList.add("muted");
+  }
+};
+
+const loadEvalSummary = async () => {
+  try {
+    const response = await fetch("/api/v1/evals/summary");
+    const payload = await response.json();
+    evalQueries.textContent = payload.queries ?? "-";
+    evalLatency.textContent = payload.avg_latency_ms ? `${payload.avg_latency_ms} ms` : "-";
+    evalScore.textContent = payload.avg_top_score ?? "-";
+  } catch {
+    evalQueries.textContent = "-";
+    evalLatency.textContent = "-";
+    evalScore.textContent = "-";
+  }
 };
 
 const ask = async () => {
@@ -117,6 +268,7 @@ const ask = async () => {
 
     renderSources(payload.sources || []);
     renderCitations(payload.citations || []);
+    await Promise.all([loadQueryHistory(), loadEvalSummary()]);
   } catch (error) {
     answerBox.textContent = `Failed to query: ${error.message}`;
     answerBox.classList.add("muted");
@@ -149,6 +301,7 @@ const rebuildIndex = async () => {
       throw new Error(`HTTP ${response.status}`);
     }
     setIngestStatus("Rebuild started.");
+    await loadIngestionHistory();
   } catch (error) {
     setIngestStatus(`Rebuild failed: ${error.message}`);
   }
@@ -173,6 +326,7 @@ const uploadFiles = async () => {
     }
     const payload = await response.json();
     setIngestStatus(`Uploaded: ${payload.saved?.length || 0} files. Rebuild started.`);
+    await loadIngestionHistory();
   } catch (error) {
     setIngestStatus(`Upload failed: ${error.message}`);
   }
@@ -180,3 +334,5 @@ const uploadFiles = async () => {
 
 uploadButton.addEventListener("click", uploadFiles);
 rebuildButton.addEventListener("click", rebuildIndex);
+
+void Promise.all([loadQueryHistory(), loadIngestionHistory(), loadEvalSummary()]);

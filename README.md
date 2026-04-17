@@ -2,16 +2,40 @@
 
 > Hybrydowy backend RAG z wyszukiwaniem semantycznym i odpowiedziami opartymi o SQL.
 
+![Danex RAG overview](C:/Users/syfsy/projekty/danex-rag-service/docs/assets/console-overview.png)
+
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain)](https://langchain.com/)
 [![Gemini](https://img.shields.io/badge/Google_Gemini-8E75B2?style=for-the-badge&logo=googlegemini)](https://deepmind.google/technologies/gemini/)
 [![CI](https://github.com/danieloza/danex-rag-service/actions/workflows/ci.yml/badge.svg)](https://github.com/danieloza/danex-rag-service/actions/workflows/ci.yml)
 
-## Opis
+## Product Thesis
 
-Danex RAG to serwis inference, ktory laczy nieustrukturyzowana dokumentacje z ustrukturyzowanymi danymi operacyjnymi. Projekt wykorzystuje hybrydowy przeplyw retrievalu: czesc pytan obsluguje przez wyszukiwanie semantyczne, a czesc przez synteze zapytan SQL i odpowiedzi oparte o baze danych.
+Wiekszosc prostych demo RAG konczy sie na:
 
-To podejscie pozwala budowac bardziej praktyczne odpowiedzi niz w prostym chatbocie opartym tylko o dokumenty.
+- wrzuceniu dokumentu
+- odpaleniu embeddings
+- i wygenerowaniu odpowiedzi bez jasnego sygnalu, skad ona pochodzi
+
+Danex RAG idzie krok dalej:
+
+- laczy retrieval dokumentowy z odpowiedziami opartymi o SQL
+- pokazuje route (`sql`, `vector`, `hybrid`, `none`)
+- zwraca cytaty i score zrodel
+- trzyma historie pytan i ingestu
+- pozwala zarzadzac knowledge base z poziomu UI
+
+To repo ma pokazywac praktyczny backend RAG, a nie tylko jednorazowy eksperyment z LangChain.
+
+## Why This Matters In Production
+
+W realnym systemie AI sama odpowiedz nie wystarcza.
+
+- operator musi wiedziec, czy odpowiedz przyszla z danych operacyjnych czy z dokumentow
+- zespol musi widziec, jakie pliki sa aktualnie w knowledge base
+- ingestion nie moze byc czarna skrzynka
+- latency i score zrodel powinny byc widoczne
+- query history i evaluation summary pomagaja zobaczyc, jak system zachowuje sie w praktyce
 
 ## Kluczowe cechy techniczne
 
@@ -21,6 +45,9 @@ To podejscie pozwala budowac bardziej praktyczne odpowiedzi niz w prostym chatbo
 - generowanie zapytan SQL i synteza odpowiedzi wspierane przez Gemini
 - walidacja requestow w Pydantic i jawne kontrakty API
 - endpoint health i podstawowe logowanie do diagnostyki runtime
+- upload + rebuild dla ingestion
+- query history, ingestion history i evaluation summary
+- source citations z podobienstwem i preview
 
 ## Stack technologiczny
 
@@ -34,9 +61,24 @@ To podejscie pozwala budowac bardziej praktyczne odpowiedzi niz w prostym chatbo
 
 - `POST /api/v1/ask`
 - `POST /api/v1/query`
+- `POST /api/v1/ingest/upload`
+- `POST /api/v1/ingest/rebuild`
 - `POST /api/v1/report/pdf`
+- `GET /api/v1/history/queries`
+- `GET /api/v1/ingest/history`
+- `GET /api/v1/evals/summary`
+- `DELETE /api/v1/ingest/files/{filename}`
 - `GET /api/v1/report/download/{filename}`
 - `GET /health`
+
+## Demo Walkthrough
+
+1. Wrzuc pliki do knowledge base przez `Upload + rebuild`.
+2. Zadaj pytanie przez UI.
+3. Sprawdz, czy system poszedl przez `sql`, `vector` czy `hybrid`.
+4. Rozwin cytaty i zobacz preview zrodla oraz score.
+5. Sprawdz query history i evaluation summary.
+6. Usun plik z knowledge base i odpal rebuild, zeby zobaczyc jak zmienia sie stan produktu.
 
 ## Instalacja i uruchomienie
 
@@ -101,14 +143,35 @@ zainstalowany, pliki nietekstowe zostana pominiete z ostrzezeniem.
 
 - `POST /api/v1/ingest/upload` (multipart) - upload plikow do knowledge_base + opcjonalny rebuild
 - `POST /api/v1/ingest/rebuild` - rebuild indeksu FAISS w tle
+- `GET /api/v1/ingest/history` - historia ingestu i lista aktualnych plikow
+- `DELETE /api/v1/ingest/files/{filename}` - usuniecie pliku i opcjonalny rebuild
+- `GET /api/v1/history/queries` - historia ostatnich pytan
 - `GET /api/v1/debug/index` - status indeksu + meta ingestu
 - `GET /api/v1/debug/db` - status baz SQLite
+- `GET /api/v1/evals/summary` - prosta warstwa oceny: liczba zapytan, route breakdown, sredni latency, sredni top score
 
 Odpowiedz `/api/v1/ask` zwraca dodatkowo:
 
 - `meta.route` (`sql`, `vector`, `hybrid`, `none`)
 - `citations` z fragmentami zrodel vectorowych
 - `citations[].score` (znormalizowany score podobienstwa)
+
+UI pokazuje teraz:
+
+- query history
+- ingestion history
+- source preview przez rozwiniecie cytatu
+- knowledge files z opcja delete + rebuild
+- evaluation summary dla ostatnich zapytan
+
+## Proof Assets
+
+- console overview: [docs/assets/console-overview.png](/C:/Users/syfsy/projekty/danex-rag-service/docs/assets/console-overview.png)
+  pokazuje glowny ekran z pytaniem, odpowiedzia, route i citations
+- ingestion workflow: [docs/assets/ingestion-workflow.png](/C:/Users/syfsy/projekty/danex-rag-service/docs/assets/ingestion-workflow.png)
+  pokazuje knowledge files, upload/rebuild i ingestion history
+- query + eval history: [docs/assets/query-eval-history.png](/C:/Users/syfsy/projekty/danex-rag-service/docs/assets/query-eval-history.png)
+  pokazuje historie pytan i warstwe prostego monitoringu jakosci
 
 Uwagi:
 
@@ -125,7 +188,7 @@ Uwagi:
 
 ## Jak opowiedziec ten projekt na rozmowie
 
-Danex RAG to hybrydowy backend RAG w FastAPI, ktory laczy semantic retrieval z odpowiedziami opartymi o SQL nad danymi operacyjnymi. Celem bylo zbudowanie bardziej praktycznego rozwiazania niz prosty chatbot oparty tylko o dokumenty.
+Danex RAG to hybrydowy backend RAG w FastAPI, ktory laczy semantic retrieval z odpowiedziami opartymi o SQL nad danymi operacyjnymi. Celem bylo zbudowanie praktyczniejszego systemu niz prosty chatbot dokumentowy: z ingestion layer, route transparency, source scoring, query history i prostym evaluation summary.
 
 ## Dodatkowa dokumentacja
 

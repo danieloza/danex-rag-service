@@ -1,7 +1,9 @@
 .venv/
 __pycache__/
 *.pyc
-.runtime-uvicorn.*.log
+.runtime-uvicorn*.log
+.runtime-query-history.json
+.playwright-cli/
 *.pyo
 *.pyd
 .pytest_cache/
