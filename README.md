@@ -197,4 +197,3 @@ Danex RAG is a hybrid FastAPI RAG backend that combines semantic retrieval with 
 
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Case study: [docs/CASE_STUDY.md](docs/CASE_STUDY.md)
-- Short Polish interview version: [docs/README_SHORT_PL.md](docs/README_SHORT_PL.md)
