@@ -1,8 +1,8 @@
 # Danex Global Hybrid RAG Service
 
-> Hybrydowy backend RAG z wyszukiwaniem semantycznym i odpowiedziami opartymi o SQL.
+> Hybrid FastAPI RAG backend combining semantic retrieval with SQL-backed answers over operational data.
 
-![Danex RAG overview](C:/Users/syfsy/projekty/danex-rag-service/docs/assets/console-overview.png)
+![Danex RAG overview](docs/assets/console-overview.png)
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain)](https://langchain.com/)
@@ -11,53 +11,54 @@
 
 ## Product Thesis
 
-Wiekszosc prostych demo RAG konczy sie na:
+Many simple RAG demos stop at:
 
-- wrzuceniu dokumentu
-- odpaleniu embeddings
-- i wygenerowaniu odpowiedzi bez jasnego sygnalu, skad ona pochodzi
+- uploading a document
+- generating embeddings
+- returning an answer without a clear signal of where it came from
 
-Danex RAG idzie krok dalej:
+Danex RAG goes further:
 
-- laczy retrieval dokumentowy z odpowiedziami opartymi o SQL
-- pokazuje route (`sql`, `vector`, `hybrid`, `none`)
-- zwraca cytaty i score zrodel
-- trzyma historie pytan i ingestu
-- pozwala zarzadzac knowledge base z poziomu UI
+- combines document retrieval with SQL-backed answers
+- exposes the selected answer route: `sql`, `vector`, `hybrid`, or `none`
+- returns citations with source scores
+- stores query history and ingestion history
+- provides knowledge-base management from the UI
+- includes a lightweight evaluation summary for recent queries
 
-To repo ma pokazywac praktyczny backend RAG, a nie tylko jednorazowy eksperyment z LangChain.
+The goal is to show a practical RAG backend, not a one-off LangChain experiment.
 
 ## Why This Matters In Production
 
-W realnym systemie AI sama odpowiedz nie wystarcza.
+In real AI systems, the generated answer is not enough.
 
-- operator musi wiedziec, czy odpowiedz przyszla z danych operacyjnych czy z dokumentow
-- zespol musi widziec, jakie pliki sa aktualnie w knowledge base
-- ingestion nie moze byc czarna skrzynka
-- latency i score zrodel powinny byc widoczne
-- query history i evaluation summary pomagaja zobaczyc, jak system zachowuje sie w praktyce
+- operators need to know whether an answer came from operational data or documents
+- teams need visibility into which files are currently in the knowledge base
+- ingestion should not be a black box
+- latency, route choice, and source confidence should be visible
+- query history and evaluation summaries help explain how the system behaves over time
 
-## Kluczowe cechy techniczne
+## Technical Highlights
 
-- hybrydowy pipeline laczacy FAISS semantic search z Text-to-SQL nad bazami operacyjnymi
-- warstwa API oparta o FastAPI do inference i generowania raportow
-- lokalne embeddingi z HuggingFace `sentence-transformers/all-MiniLM-L6-v2`
-- generowanie zapytan SQL i synteza odpowiedzi wspierane przez Gemini
-- walidacja requestow w Pydantic i jawne kontrakty API
-- endpoint health i podstawowe logowanie do diagnostyki runtime
-- upload + rebuild dla ingestion
-- query history, ingestion history i evaluation summary
-- source citations z podobienstwem i preview
+- Hybrid pipeline combining FAISS semantic search with Text-to-SQL over operational SQLite data
+- FastAPI API layer for inference, ingestion, history, evaluation, and report generation
+- Local HuggingFace embeddings with `sentence-transformers/all-MiniLM-L6-v2`
+- SQL generation and answer synthesis supported by Gemini
+- Pydantic request validation and explicit API contracts
+- Health endpoint and basic runtime diagnostics
+- Upload + rebuild ingestion workflow
+- Query history, ingestion history, and evaluation summary
+- Source citations with similarity score and preview
 
-## Stack technologiczny
+## Tech Stack
 
 - Inference: Google Gemini 2.0 Flash
 - Frameworks: FastAPI, LangChain, Pydantic
-- Vector Store: FAISS
-- Data Sources: SQLite (`salonos.db`, `danex.db`)
+- Vector store: FAISS
+- Data sources: SQLite (`salonos.db`, `danex.db`)
 - Embeddings: HuggingFace `all-MiniLM-L6-v2`
 
-## Powierzchnia API
+## API Surface
 
 - `POST /api/v1/ask`
 - `POST /api/v1/query`
@@ -73,23 +74,23 @@ W realnym systemie AI sama odpowiedz nie wystarcza.
 
 ## Demo Walkthrough
 
-1. Wrzuc pliki do knowledge base przez `Upload + rebuild`.
-2. Zadaj pytanie przez UI.
-3. Sprawdz, czy system poszedl przez `sql`, `vector` czy `hybrid`.
-4. Rozwin cytaty i zobacz preview zrodla oraz score.
-5. Sprawdz query history i evaluation summary.
-6. Usun plik z knowledge base i odpal rebuild, zeby zobaczyc jak zmienia sie stan produktu.
+1. Upload files into the knowledge base through `Upload + rebuild`.
+2. Ask a question from the UI.
+3. Check whether the system used the `sql`, `vector`, or `hybrid` route.
+4. Expand citations and inspect source preview plus similarity score.
+5. Review query history and evaluation summary.
+6. Delete a knowledge-base file and rebuild the index to see how the product state changes.
 
-## Instalacja i uruchomienie
+## Installation
 
-Sklonuj repozytorium:
+Clone the repository:
 
 ```bash
 git clone https://github.com/danieloza/danex-rag-service.git
 cd danex-rag-service
 ```
 
-Zainstaluj zaleznosci:
+Install dependencies:
 
 ```bash
 python -m venv .venv
@@ -105,93 +106,95 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Skonfiguruj srodowisko:
+Configure the environment:
 
 ```bash
 cp .env.example .env
 ```
 
-Przed uruchomieniem ustaw `GOOGLE_API_KEY`. Opcjonalne sciezki do baz mozesz nadpisac przez `SALONOS_DB_PATH` i `DANEX_DB_PATH`.
+Set `GOOGLE_API_KEY` before running full RAG queries. Optional SQLite database paths can be overridden with `SALONOS_DB_PATH` and `DANEX_DB_PATH`.
 
-Uruchom lokalnie:
+Run locally:
 
 ```bash
 uvicorn main:app --host 127.0.0.1 --port 8002 --reload
 ```
 
-Po uruchomieniu wejdz na `http://127.0.0.1:8002/` aby otworzyc prosta konsole RAG.
+Open:
 
-Uruchom szybki smoke test:
+```text
+http://127.0.0.1:8002/
+```
+
+Run the smoke tests:
 
 ```bash
 python -m pytest -q tests
 ```
 
-## Ingestion i FAISS
+## Ingestion And FAISS
 
-Budowanie lokalnego indeksu FAISS:
+Build the local FAISS index:
 
 ```bash
 python ingest.py
 ```
 
-`ingest.py` korzysta z MarkItDown do konwersji plikow na Markdown
-(PDF, DOCX, PPTX, XLSX, HTML, CSV, JSON itd.). Jesli MarkItDown nie jest
-zainstalowany, pliki nietekstowe zostana pominiete z ostrzezeniem.
+`ingest.py` uses MarkItDown to convert files into Markdown, including PDF, DOCX, PPTX, XLSX, HTML, CSV, and JSON. If MarkItDown is not installed, non-text files are skipped with a warning.
 
-## Nowe endpointy UX
+## UX Endpoints
 
-- `POST /api/v1/ingest/upload` (multipart) - upload plikow do knowledge_base + opcjonalny rebuild
-- `POST /api/v1/ingest/rebuild` - rebuild indeksu FAISS w tle
-- `GET /api/v1/ingest/history` - historia ingestu i lista aktualnych plikow
-- `DELETE /api/v1/ingest/files/{filename}` - usuniecie pliku i opcjonalny rebuild
-- `GET /api/v1/history/queries` - historia ostatnich pytan
-- `GET /api/v1/debug/index` - status indeksu + meta ingestu
-- `GET /api/v1/debug/db` - status baz SQLite
-- `GET /api/v1/evals/summary` - prosta warstwa oceny: liczba zapytan, route breakdown, sredni latency, sredni top score
+- `POST /api/v1/ingest/upload` - upload files to `knowledge_base` with optional rebuild
+- `POST /api/v1/ingest/rebuild` - rebuild the FAISS index in the background
+- `GET /api/v1/ingest/history` - ingestion history and current knowledge files
+- `DELETE /api/v1/ingest/files/{filename}` - delete a knowledge file and optionally rebuild
+- `GET /api/v1/history/queries` - recent query history
+- `GET /api/v1/debug/index` - index status and ingestion metadata
+- `GET /api/v1/debug/db` - SQLite database status
+- `GET /api/v1/evals/summary` - query count, route breakdown, average latency, and average top score
 
-Odpowiedz `/api/v1/ask` zwraca dodatkowo:
+The `/api/v1/ask` response also includes:
 
-- `meta.route` (`sql`, `vector`, `hybrid`, `none`)
-- `citations` z fragmentami zrodel vectorowych
-- `citations[].score` (znormalizowany score podobienstwa)
+- `meta.route`: `sql`, `vector`, `hybrid`, or `none`
+- `citations`: source snippets from vector retrieval
+- `citations[].score`: normalized source similarity score
 
-UI pokazuje teraz:
+The UI shows:
 
 - query history
 - ingestion history
-- source preview przez rozwiniecie cytatu
-- knowledge files z opcja delete + rebuild
-- evaluation summary dla ostatnich zapytan
+- source preview through expandable citations
+- knowledge files with delete + rebuild actions
+- evaluation summary for recent queries
 
 ## Proof Assets
 
-- console overview: [docs/assets/console-overview.png](/C:/Users/syfsy/projekty/danex-rag-service/docs/assets/console-overview.png)
-  pokazuje glowny ekran z pytaniem, odpowiedzia, route i citations
-- ingestion workflow: [docs/assets/ingestion-workflow.png](/C:/Users/syfsy/projekty/danex-rag-service/docs/assets/ingestion-workflow.png)
-  pokazuje knowledge files, upload/rebuild i ingestion history
-- query + eval history: [docs/assets/query-eval-history.png](/C:/Users/syfsy/projekty/danex-rag-service/docs/assets/query-eval-history.png)
-  pokazuje historie pytan i warstwe prostego monitoringu jakosci
+- console overview: [docs/assets/console-overview.png](docs/assets/console-overview.png)  
+  Shows the main screen with question input, answer, selected route, and citations.
+- ingestion workflow: [docs/assets/ingestion-workflow.png](docs/assets/ingestion-workflow.png)  
+  Shows knowledge files, upload/rebuild, and ingestion history.
+- query + eval history: [docs/assets/query-eval-history.png](docs/assets/query-eval-history.png)  
+  Shows query history and a lightweight quality-monitoring layer.
 
-Uwagi:
+Notes:
 
-- `GET /health` i lokalny smoke test nie wymagaja aktywnego requestu do Gemini
-- pelne odpowiedzi hybrydowe wymagaja `GOOGLE_API_KEY` oraz dostepu do docelowych zrodel danych SQLite
+- `GET /health` and local smoke tests do not require an active Gemini request.
+- Full hybrid answers require `GOOGLE_API_KEY` and access to the target SQLite data sources.
 
-## Uwagi architektoniczne
+## Architecture Notes
 
-- kontekst wektorowy jest ladowany z lokalnego katalogu `faiss_index`
-- odpowiedzi SQL sa generowane na bazach SQLite SalonOS i Danex
-- raporty PDF sa generowane przez `pdf_generator.py`
-- serwis preferuje lokalny `.env`, a w drugiej kolejnosci korzysta ze wspoldzielonego `.env.global`
-- projekt jest pomyslany jako warstwa AI inference dzialajaca obok backendowego stosu Danex
+- Vector context is loaded from the local `faiss_index` directory.
+- SQL answers are generated against SalonOS and Danex SQLite databases.
+- PDF reports are generated by `pdf_generator.py`.
+- The service prefers a local `.env` and falls back to a shared `.env.global` when present.
+- The project is designed as an AI inference layer that can sit next to a business backend stack.
 
-## Jak opowiedziec ten projekt na rozmowie
+## Interview Framing
 
-Danex RAG to hybrydowy backend RAG w FastAPI, ktory laczy semantic retrieval z odpowiedziami opartymi o SQL nad danymi operacyjnymi. Celem bylo zbudowanie praktyczniejszego systemu niz prosty chatbot dokumentowy: z ingestion layer, route transparency, source scoring, query history i prostym evaluation summary.
+Danex RAG is a hybrid FastAPI RAG backend that combines semantic retrieval with SQL-backed answers over operational data. The goal was to build something more practical than a document chatbot: ingestion, route transparency, source scoring, query history, and a simple evaluation summary.
 
-## Dodatkowa dokumentacja
+## Additional Documentation
 
-- Architektura: [docs/ARCHITECTURE.md](/C:/Users/syfsy/projekty/danex-rag-service/docs/ARCHITECTURE.md)
-- Case study: [docs/CASE_STUDY.md](/C:/Users/syfsy/projekty/danex-rag-service/docs/CASE_STUDY.md)
-- Krotka wersja pod rozmowe: [docs/README_SHORT_PL.md](/C:/Users/syfsy/projekty/danex-rag-service/docs/README_SHORT_PL.md)
+- Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Case study: [docs/CASE_STUDY.md](docs/CASE_STUDY.md)
+- Short Polish interview version: [docs/README_SHORT_PL.md](docs/README_SHORT_PL.md)
