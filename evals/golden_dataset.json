@@ -1,0 +1,49 @@
+{
+  "version": "2026.07.24",
+  "description": "Retrieval regression set for the committed Danex knowledge corpus.",
+  "queries": [
+    {
+      "id": "golden-cancellation-window",
+      "question": "Ile godzin przed wizytą można ją anulować bez opłaty?",
+      "expected_sources": [
+        "procedury.txt",
+        "regulamin_salonu_2026.txt"
+      ]
+    },
+    {
+      "id": "golden-complaint-deadline",
+      "question": "W jakim terminie klient może zgłosić reklamację?",
+      "expected_sources": [
+        "regulamin_salonu_2026.txt"
+      ]
+    },
+    {
+      "id": "golden-vip-threshold",
+      "question": "Kiedy klient otrzymuje status VIP Danex Black Card?",
+      "expected_sources": [
+        "regulamin_salonu_2026.txt"
+      ]
+    },
+    {
+      "id": "golden-vip-wait",
+      "question": "Jaki jest maksymalny czas oczekiwania klienta VIP?",
+      "expected_sources": [
+        "procedury.txt"
+      ]
+    },
+    {
+      "id": "golden-safety",
+      "question": "Jak salon sterylizuje narzędzia wielorazowego użytku?",
+      "expected_sources": [
+        "regulamin_salonu_2026.txt"
+      ]
+    },
+    {
+      "id": "golden-retention",
+      "question": "Po ilu dniach od wizyty uruchamiana jest kampania retencyjna SMS?",
+      "expected_sources": [
+        "procedury.txt"
+      ]
+    }
+  ]
+}

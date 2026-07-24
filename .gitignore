@@ -2,7 +2,10 @@
 __pycache__/
 *.pyc
 .runtime-uvicorn*.log
-.runtime-query-history.json
+.runtime-query-history*.json
+.runtime-control-plane*.sqlite3
+.runtime-control-plane*.sqlite3-shm
+.runtime-control-plane*.sqlite3-wal
 .playwright-cli/
 *.pyo
 *.pyd
@@ -14,3 +17,5 @@ __pycache__/
 !.env.example
 rag_log.txt
 reports/
+output/
+knowledge_base/.ingest_history.json

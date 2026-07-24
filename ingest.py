@@ -9,6 +9,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
+from retrieval_control import rebuild_lexical_index
 
 try:
     from markitdown import MarkItDown
@@ -91,10 +92,14 @@ def _write_meta(index_path: Path, doc_count: int) -> None:
 
 def build_index(knowledge_dir: Path, index_path: Path) -> int:
     print(f"Starting local indexing from {knowledge_dir}...")
+    control_plane_db = Path(
+        os.environ.get("DANEX_CONTROL_PLANE_DB_PATH", ".runtime-control-plane.sqlite3")
+    )
 
     documents = _load_documents(knowledge_dir)
 
     if not documents:
+        rebuild_lexical_index(control_plane_db, knowledge_dir)
         print("No documents found for indexing.")
         return 0
 
@@ -107,8 +112,15 @@ def build_index(knowledge_dir: Path, index_path: Path) -> int:
     vectorstore = FAISS.from_documents(docs, embeddings)
     vectorstore.save_local(str(index_path))
     _write_meta(index_path, len(docs))
+    lexical_meta = rebuild_lexical_index(
+        control_plane_db,
+        knowledge_dir,
+    )
 
-    print(f"Indexed {len(docs)} knowledge chunks locally.")
+    print(
+        f"Indexed {len(docs)} dense chunks and "
+        f"{lexical_meta['chunks']} lexical chunks locally."
+    )
     return len(docs)
 
 

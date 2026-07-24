@@ -1,199 +1,223 @@
 # Danex Global Hybrid RAG Service
 
-> Hybrid FastAPI RAG backend combining semantic retrieval with SQL-backed answers over operational data.
-
-![Danex RAG overview](docs/assets/console-overview.png)
+> A governed retrieval service that combines SQLite FTS5, FAISS dense search, Reciprocal Rank Fusion, operational SQL, versioned retrieval profiles, regression replay, release gates, and query-level evidence traces.
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
-[![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain)](https://langchain.com/)
-[![Gemini](https://img.shields.io/badge/Google_Gemini-8E75B2?style=for-the-badge&logo=googlegemini)](https://deepmind.google/technologies/gemini/)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-0F172A?style=for-the-badge)](LICENSE)
 [![CI](https://github.com/danieloza/danex-rag-service/actions/workflows/ci.yml/badge.svg)](https://github.com/danieloza/danex-rag-service/actions/workflows/ci.yml)
+
+[Demo](#demo) · [Control Plane](#retrieval-control-plane) · [API](#enterprise-api-surface) · [Architecture](docs/ARCHITECTURE.md) · [Release Notes](CHANGELOG.md) · [License](LICENSE)
+
+## Demo
+
+![Danex Retrieval Control Plane demo](docs/assets/retrieval-control-plane-demo.gif)
+
+The guided presentation moves from the active retrieval profile through the hybrid plan, candidate comparison, counterfactual replay, release gate, Query Workspace, and Flight Recorder. Model synthesis is disabled during the recorded path, so the evidence workflow does not consume an LLM API quota.
+
+![Danex Retrieval Control Plane](docs/assets/retrieval-control-plane-overview.png)
 
 ## Product Thesis
 
-Many simple RAG demos stop at:
+A useful RAG service must answer two different questions:
 
-- uploading a document
-- generating embeddings
-- returning an answer without a clear signal of where it came from
+1. What evidence should be retrieved for this request?
+2. Can a retrieval change be released without silently degrading known answers?
 
-Danex RAG goes further:
+Danex addresses both. The runtime combines lexical and semantic evidence with structured operational data. The Retrieval Control Plane versions that behavior, replays historical and golden queries against candidate profiles, exposes ranking changes, and requires a passing quality gate before promotion.
 
-- combines document retrieval with SQL-backed answers
-- exposes the selected answer route: `sql`, `vector`, `hybrid`, or `none`
-- returns citations with source scores
-- stores query history and ingestion history
-- provides knowledge-base management from the UI
-- includes a lightweight evaluation summary for recent queries
+## Retrieval Control Plane
 
-The goal is to show a practical RAG backend, not a one-off LangChain experiment.
+The Control Plane is the primary differentiator:
 
-## Why This Matters In Production
+- **true hybrid retrieval** — SQLite FTS5 and FAISS produce independent candidate rankings
+- **Reciprocal Rank Fusion** — channel scores are fused through rank contributions instead of incompatible raw score scales
+- **versioned profiles** — weights, rank constant, top-k and gate thresholds are stored as immutable candidate versions
+- **counterfactual replay** — the active and candidate profiles run over the same historical and golden queries
+- **decision diff** — every query shows current source, candidate source, NDCG delta, classification and risk
+- **release gate** — promotion is blocked unless the latest candidate replay passes quality, regression, citation-churn and latency thresholds
+- **controlled promotion and rollback** — state changes record the actor, previous profile and replay evidence
+- **query Flight Recorder** — each request records lexical, dense, fusion, evidence and synthesis stages with durations and channel contributions
 
-In real AI systems, the generated answer is not enough.
+The committed six-query golden set produces two corrected top-source rankings in the captured local run, an average `NDCG Δ` of `+0.123`, and zero known-answer regressions.
 
-- operators need to know whether an answer came from operational data or documents
-- teams need visibility into which files are currently in the knowledge base
-- ingestion should not be a black box
-- latency, route choice, and source confidence should be visible
-- query history and evaluation summaries help explain how the system behaves over time
+![Retrieval replay and diff](docs/assets/retrieval-replay-diff.png)
 
-## Technical Highlights
+## Query Evidence
 
-- Hybrid pipeline combining FAISS semantic search with Text-to-SQL over operational SQLite data
-- FastAPI API layer for inference, ingestion, history, evaluation, and report generation
-- Local HuggingFace embeddings with `sentence-transformers/all-MiniLM-L6-v2`
-- SQL generation and answer synthesis supported by Gemini
-- Pydantic request validation and explicit API contracts
-- Health endpoint and basic runtime diagnostics
-- Upload + rebuild ingestion workflow
-- Query history, ingestion history, and evaluation summary
-- Source citations with similarity score and preview
+Query Workspace operates in two explicit modes:
 
-## Tech Stack
+- **local evidence mode** — FTS5, FAISS, RRF, citations and traces run without an LLM call
+- **synthesis mode** — an operator opts in to Gemini-backed answer generation and Text-to-SQL
 
-- Inference: Google Gemini 2.0 Flash
-- Frameworks: FastAPI, LangChain, Pydantic
-- Vector store: FAISS
-- Data sources: SQLite (`salonos.db`, `danex.db`)
-- Embeddings: HuggingFace `all-MiniLM-L6-v2`
+If the model provider is unavailable or quota-limited, the API degrades to local evidence mode and preserves ranked citations. Provider error payloads are not returned to the UI.
 
-## API Surface
+![Source-bound query workspace](docs/assets/query-workspace-evidence.png)
+
+Every response includes a `query_id`, active `retrieval_profile_version`, selected route, source channels, fused citations and correlation metadata.
+
+![Query Flight Recorder](docs/assets/query-flight-recorder.png)
+
+## Architecture
+
+```text
+                     ┌──────────────────────────┐
+Question ───────────►│ Active retrieval profile │
+                     └─────────────┬────────────┘
+                                   │
+                    ┌──────────────┴──────────────┐
+                    │                             │
+            SQLite FTS5                    FAISS + local
+          lexical retrieval                embeddings
+                    │                             │
+                    └──────────────┬──────────────┘
+                                   ▼
+                        Reciprocal Rank Fusion
+                                   │
+                         ranked citation pack
+                                   │
+                    ┌──────────────┴──────────────┐
+                    │                             │
+              evidence-only                  LLM synthesis
+               zero-cost mode                  opt-in
+```
+
+Operational questions can additionally route through the existing controlled SQLite Text-to-SQL path. More detail is available in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/RETRIEVAL_CONTROL_PLANE.md](docs/RETRIEVAL_CONTROL_PLANE.md).
+
+## Enterprise API Surface
+
+Core query and ingestion:
 
 - `POST /api/v1/ask`
 - `POST /api/v1/query`
 - `POST /api/v1/ingest/upload`
 - `POST /api/v1/ingest/rebuild`
-- `POST /api/v1/report/pdf`
+- `DELETE /api/v1/ingest/files/{filename}`
 - `GET /api/v1/history/queries`
 - `GET /api/v1/ingest/history`
 - `GET /api/v1/evals/summary`
-- `DELETE /api/v1/ingest/files/{filename}`
-- `GET /api/v1/report/download/{filename}`
-- `GET /health`
+
+Retrieval governance:
+
+- `GET /api/v1/retrieval/control-plane`
+- `GET /api/v1/retrieval/profiles`
+- `POST /api/v1/retrieval/profiles`
+- `POST /api/v1/retrieval/replay`
+- `GET /api/v1/retrieval/replays`
+- `GET /api/v1/retrieval/replays/{replay_id}`
+- `GET /api/v1/retrieval/traces`
+- `GET /api/v1/retrieval/traces/{query_id}`
+- `POST /api/v1/retrieval/profiles/{version}/promote`
+- `POST /api/v1/retrieval/profiles/{version}/rollback`
+- `POST /api/v1/retrieval/index/lexical/rebuild`
+
+See [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md) for representative contracts.
 
 ## Demo Walkthrough
 
-1. Upload files into the knowledge base through `Upload + rebuild`.
-2. Ask a question from the UI.
-3. Check whether the system used the `sql`, `vector`, or `hybrid` route.
-4. Expand citations and inspect source preview plus similarity score.
-5. Review query history and evaluation summary.
-6. Delete a knowledge-base file and rebuild the index to see how the product state changes.
+1. Open `Control plane`.
+2. Inspect the active and candidate retrieval profiles.
+3. Keep `Dense channel` enabled and select `Replay golden set`.
+4. Review changed top sources, NDCG deltas and per-query risk.
+5. Verify all quality-gate checks before enabling promotion.
+6. Open `Query workspace`.
+7. Leave `LLM synthesis` disabled and run a quick policy prompt.
+8. Inspect lexical and dense citation badges plus source previews.
+9. Return to `Control plane` and open the latest Flight Recorder trace.
+10. Use `Guided demo` for the presentation overlay.
 
-## Installation
+The demo path does not require paid infrastructure. The first dense request may take longer while the local embedding model warms up.
 
-Clone the repository:
+## Run Locally
 
 ```bash
 git clone https://github.com/danieloza/danex-rag-service.git
 cd danex-rag-service
-```
-
-Install dependencies:
-
-```bash
 python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
 ```
 
 Windows PowerShell:
 
 ```powershell
-python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+uvicorn main:app --host 127.0.0.1 --port 8002
 ```
 
-Configure the environment:
+macOS or Linux:
 
 ```bash
-cp .env.example .env
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --host 127.0.0.1 --port 8002
 ```
 
-Set `GOOGLE_API_KEY` before running full RAG queries. Optional SQLite database paths can be overridden with `SALONOS_DB_PATH` and `DANEX_DB_PATH`.
+Open `http://127.0.0.1:8002/`.
 
-Run locally:
+### Environment
 
-```bash
-uvicorn main:app --host 127.0.0.1 --port 8002 --reload
-```
+Copy `.env.example` to `.env`. `GOOGLE_API_KEY` is optional for local evidence mode and required only when LLM synthesis is enabled.
 
-Open:
+Optional overrides:
 
 ```text
-http://127.0.0.1:8002/
+SALONOS_DB_PATH=
+DANEX_DB_PATH=
+DANEX_CONTROL_PLANE_DB_PATH=.runtime-control-plane.sqlite3
+DANEX_QUERY_HISTORY_PATH=.runtime-query-history.json
+DANEX_ENABLE_LOCAL_EMBEDDINGS=1
 ```
 
-Run the smoke tests:
-
-```bash
-python -m pytest -q tests
-```
-
-## Ingestion And FAISS
-
-Build the local FAISS index:
+## Build the Index
 
 ```bash
 python ingest.py
 ```
 
-`ingest.py` uses MarkItDown to convert files into Markdown, including PDF, DOCX, PPTX, XLSX, HTML, CSV, and JSON. If MarkItDown is not installed, non-text files are skipped with a warning.
+The ingestion pipeline writes:
 
-## UX Endpoints
+- FAISS dense index files under `faiss_index/`
+- FTS5 lexical chunks into the local Control Plane SQLite store
+- ingestion metadata and source-change history
 
-- `POST /api/v1/ingest/upload` - upload files to `knowledge_base` with optional rebuild
-- `POST /api/v1/ingest/rebuild` - rebuild the FAISS index in the background
-- `GET /api/v1/ingest/history` - ingestion history and current knowledge files
-- `DELETE /api/v1/ingest/files/{filename}` - delete a knowledge file and optionally rebuild
-- `GET /api/v1/history/queries` - recent query history
-- `GET /api/v1/debug/index` - index status and ingestion metadata
-- `GET /api/v1/debug/db` - SQLite database status
-- `GET /api/v1/evals/summary` - query count, route breakdown, average latency, and average top score
+MarkItDown supports PDF, DOCX, PPTX, XLSX, HTML, CSV and JSON conversion when the corresponding parser is available.
 
-The `/api/v1/ask` response also includes:
+## Verification
 
-- `meta.route`: `sql`, `vector`, `hybrid`, or `none`
-- `citations`: source snippets from vector retrieval
-- `citations[].score`: normalized source similarity score
+```bash
+python -m pytest -q
+node --check static/app.js
+```
 
-The UI shows:
+CI runs the backend test suite on Python 3.11. The local browser acceptance path covers:
 
-- query history
-- ingestion history
-- source preview through expandable citations
-- knowledge files with delete + rebuild actions
-- evaluation summary for recent queries
+- 1440 px desktop presentation
+- 375 px mobile navigation
+- hybrid golden-set replay
+- query execution in zero-cost evidence mode
+- Flight Recorder rendering
+- guided demo progression
+- browser console errors
 
-## Proof Assets
+## Production Boundaries
 
-- console overview: [docs/assets/console-overview.png](docs/assets/console-overview.png)  
-  Shows the main screen with question input, answer, selected route, and citations.
-- ingestion workflow: [docs/assets/ingestion-workflow.png](docs/assets/ingestion-workflow.png)  
-  Shows knowledge files, upload/rebuild, and ingestion history.
-- query + eval history: [docs/assets/query-eval-history.png](docs/assets/query-eval-history.png)  
-  Shows query history and a lightweight quality-monitoring layer.
+This repository provides a production-shaped reference implementation, not a claim of completed production deployment.
 
-Notes:
+- The default Control Plane store is local SQLite; a multi-replica deployment should use a transactional shared database.
+- FAISS is a local index; global scale requires managed or partitioned vector infrastructure and an explicit data-residency model.
+- Profile actors are request fields in this portfolio build; a company deployment should derive identity from IAM claims.
+- Text-to-SQL requires schema restrictions, read-only credentials, query validation and database-specific resource limits.
+- Retrieval traces may contain sensitive query or evidence data and require retention, access-control and redaction policies.
+- The committed golden set is intentionally small and should be replaced with domain-owned relevance judgments before rollout.
 
-- `GET /health` and local smoke tests do not require an active Gemini request.
-- Full hybrid answers require `GOOGLE_API_KEY` and access to the target SQLite data sources.
+## Documentation
 
-## Architecture Notes
+- [Retrieval Control Plane](docs/RETRIEVAL_CONTROL_PLANE.md)
+- [API examples](docs/API_EXAMPLES.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Case study](docs/CASE_STUDY.md)
+- [Release notes](CHANGELOG.md)
 
-- Vector context is loaded from the local `faiss_index` directory.
-- SQL answers are generated against SalonOS and Danex SQLite databases.
-- PDF reports are generated by `pdf_generator.py`.
-- The service prefers a local `.env` and falls back to a shared `.env.global` when present.
-- The project is designed as an AI inference layer that can sit next to a business backend stack.
+## License
 
-## Interview Framing
-
-Danex RAG is a hybrid FastAPI RAG backend that combines semantic retrieval with SQL-backed answers over operational data. The goal was to build something more practical than a document chatbot: ingestion, route transparency, source scoring, query history, and a simple evaluation summary.
-
-## Additional Documentation
-
-- Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- Case study: [docs/CASE_STUDY.md](docs/CASE_STUDY.md)
+Released under the [MIT License](LICENSE).
