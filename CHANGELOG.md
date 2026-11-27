@@ -18,6 +18,7 @@ All operator-relevant changes are recorded here. The project follows the structu
 - Zero-cost local evidence mode and an explicit UI opt-in for LLM synthesis.
 - Guided presentation flow, responsive Control Plane UI, updated screenshots and high-resolution demo GIF.
 - Configurable local paths for the Control Plane database and query history.
+- MCP server (`mcp_server.py`, Streamable HTTP) with read-only `search` and `get_trace` tools over the lexical channel, for use behind an MCP gateway.
 
 ### Changed
 
