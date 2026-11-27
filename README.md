@@ -113,6 +113,21 @@ Retrieval governance:
 
 See [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md) for representative contracts.
 
+## MCP Server
+
+[`mcp_server.py`](mcp_server.py) serves retrieval to agents over MCP (Streamable HTTP, official Python SDK). It is meant to run on loopback behind a gateway that decides who may call it, such as [mcp-security-gateway](https://github.com/danieloza/mcp-security-gateway).
+
+```bash
+python mcp_server.py   # http://127.0.0.1:8101/mcp; DANEX_MCP_HOST and DANEX_MCP_PORT override
+```
+
+| Tool | Returns |
+| --- | --- |
+| `search(question, limit)` | Up to `limit` passages (capped by the active profile's `top_k`) with source file, rank and score, plus a `query_id` |
+| `get_trace(query_id)` | The recorded trace: stages, profile settings and the ranking detail behind each passage |
+
+Both tools are read-only. The server answers from the lexical channel only: SQLite FTS5 ranked with the active profile's RRF settings. It imports `retrieval_control.py` and the MCP SDK, not LangChain, FAISS or a model provider, so dense retrieval, answer synthesis and Text-to-SQL stay in the HTTP API. Each trace records the dense stage as `skipped`.
+
 ## Demo Walkthrough
 
 1. Open `Control plane`.
